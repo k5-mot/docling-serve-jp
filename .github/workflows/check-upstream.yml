@@ -1,0 +1,67 @@
+name: Check Upstream Tags
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 毎日 JST 11:00 (UTC 02:00)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch latest upstream tag
+        id: upstream
+        run: |
+          LATEST_TAG=$(curl -fsSL \
+            "https://quay.io/api/v1/repository/docling-project/docling-serve/tag/?limit=10&page=1&onlyActiveTags=true" \
+            | jq -r '[.tags[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(.last_modified) | last | .name')
+          echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Upstream latest tag: ${LATEST_TAG}"
+
+      - name: Check if tag already built in GHCR
+        id: ghcr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          TAG="${{ steps.upstream.outputs.latest_tag }}"
+
+          TOKEN=$(echo "$GH_TOKEN" | base64 | tr -d '\n')
+          AUTH_HEADER=$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://ghcr.io/token?scope=repository:${OWNER}/docling-serve-jp:pull" \
+            | jq -r '.token')
+
+          HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" \
+            -H "Authorization: Bearer ${AUTH_HEADER}" \
+            "https://ghcr.io/v2/${OWNER}/docling-serve-jp/manifests/${TAG}")
+
+          echo "http_status=${HTTP_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "GHCR manifest check for ${TAG}: HTTP ${HTTP_STATUS}"
+
+      - name: Dispatch build if new tag found
+        if: steps.ghcr.outputs.http_status != '200'
+        env:
+          DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+        run: |
+          TAG="${{ steps.upstream.outputs.latest_tag }}"
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+
+          echo "New tag detected: ${TAG}. Dispatching build..."
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${OWNER}/${REPO}/dispatches" \
+            -d "{\"event_type\":\"upstream-new-tag\",\"client_payload\":{\"base_tag\":\"${TAG}\"}}"
+
+      - name: Skip if already built
+        if: steps.ghcr.outputs.http_status == '200'
+        run: |
+          echo "Tag ${{ steps.upstream.outputs.latest_tag }} is already built. Skipping."
