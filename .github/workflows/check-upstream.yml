@@ -58,5 +58,8 @@ jobs:
     needs: check
     if: needs.check.outputs.needs_build == 'true'
     uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+      packages: write
     with:
       base_tag: ${{ needs.check.outputs.latest_tag }}
