@@ -8,12 +8,15 @@ on:
         required: false
         default: 'latest'
         type: string
+  workflow_call:
+    inputs:
+      base_tag:
+        required: false
+        default: 'latest'
+        type: string
   push:
     tags:
       - 'v*'
-  repository_dispatch:
-    types:
-      - upstream-new-tag
 
 permissions:
   contents: read
@@ -40,9 +43,7 @@ jobs:
       - name: Determine base tag
         id: vars
         run: |
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            BASE_TAG="${{ github.event.client_payload.base_tag }}"
-          elif [ "${{ github.event_name }}" = "push" ]; then
+          if [ "${{ github.event_name }}" = "push" ]; then
             BASE_TAG="${{ github.ref_name }}"
           else
             BASE_TAG="${{ inputs.base_tag }}"

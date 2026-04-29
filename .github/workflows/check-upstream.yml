@@ -5,13 +5,17 @@ on:
     - cron: '0 2 * * *'  # 毎日 JST 11:00 (UTC 02:00)
   workflow_dispatch: {}
 
+# workflow_call 経由で build.yml を呼ぶため packages: write が必要
 permissions:
   contents: read
-  packages: read
+  packages: write
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    outputs:
+      latest_tag: ${{ steps.upstream.outputs.latest_tag }}
+      needs_build: ${{ steps.ghcr.outputs.needs_build }}
 
     steps:
       - name: Fetch latest upstream tag
@@ -31,37 +35,28 @@ jobs:
           OWNER="${{ github.repository_owner }}"
           TAG="${{ steps.upstream.outputs.latest_tag }}"
 
-          TOKEN=$(echo "$GH_TOKEN" | base64 | tr -d '\n')
-          AUTH_HEADER=$(curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            "https://ghcr.io/token?scope=repository:${OWNER}/docling-serve-jp:pull" \
+          BASE64_TOKEN=$(printf '%s:%s' "${{ github.actor }}" "${GH_TOKEN}" | base64 | tr -d '\n')
+          AUTH_TOKEN=$(curl -fsSL \
+            -H "Authorization: Basic ${BASE64_TOKEN}" \
+            "https://ghcr.io/token?scope=repository:${OWNER}/docling-serve-jp:pull&service=ghcr.io" \
             | jq -r '.token')
 
           HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" \
-            -H "Authorization: Bearer ${AUTH_HEADER}" \
+            -H "Authorization: Bearer ${AUTH_TOKEN}" \
             "https://ghcr.io/v2/${OWNER}/docling-serve-jp/manifests/${TAG}")
 
-          echo "http_status=${HTTP_STATUS}" >> "$GITHUB_OUTPUT"
           echo "GHCR manifest check for ${TAG}: HTTP ${HTTP_STATUS}"
+          if [ "${HTTP_STATUS}" = "200" ]; then
+            echo "needs_build=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} is already built. Skipping."
+          else
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            echo "New tag ${TAG} detected. Build will be triggered."
+          fi
 
-      - name: Dispatch build if new tag found
-        if: steps.ghcr.outputs.http_status != '200'
-        env:
-          DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
-        run: |
-          TAG="${{ steps.upstream.outputs.latest_tag }}"
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
-
-          echo "New tag detected: ${TAG}. Dispatching build..."
-          curl -fsSL -X POST \
-            -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${OWNER}/${REPO}/dispatches" \
-            -d "{\"event_type\":\"upstream-new-tag\",\"client_payload\":{\"base_tag\":\"${TAG}\"}}"
-
-      - name: Skip if already built
-        if: steps.ghcr.outputs.http_status == '200'
-        run: |
-          echo "Tag ${{ steps.upstream.outputs.latest_tag }} is already built. Skipping."
+  build:
+    needs: check
+    if: needs.check.outputs.needs_build == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      base_tag: ${{ needs.check.outputs.latest_tag }}
