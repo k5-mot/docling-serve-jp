@@ -23,7 +23,7 @@ jobs:
         run: |
           LATEST_TAG=$(curl -fsSL \
             "https://quay.io/api/v1/repository/docling-project/docling-serve/tag/?limit=10&page=1&onlyActiveTags=true" \
-            | jq -r '[.tags[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(.last_modified) | last | .name')
+            | jq -r '[.tags[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(.name | ltrimstr("v") | split(".") | map(tonumber)) | last | .name')
           echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
           echo "Upstream latest tag: ${LATEST_TAG}"
 
