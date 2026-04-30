@@ -1,4 +1,6 @@
 *.local.json
+.claude/
+.codex/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
