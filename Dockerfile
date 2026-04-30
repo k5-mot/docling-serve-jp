@@ -13,15 +13,15 @@ RUN dnf install -y --best --nodocs --setopt=install_weak_deps=False \
     && fc-cache -f -v
 
 # tessdata_best (高精度モデル) で jpn / jpn_vert / eng を上書き。
-RUN TESSDATA_DIR=$(find /usr /opt -name "tessdata" -type d 2>/dev/null | head -1) && \
-    echo "tessdata dir: ${TESSDATA_DIR}" && \
-    curl -fsSL -o "${TESSDATA_DIR}/jpn.traineddata" \
-    https://github.com/tesseract-ocr/tessdata_best/raw/main/jpn.traineddata && \
-    curl -fsSL -o "${TESSDATA_DIR}/jpn_vert.traineddata" \
-    https://github.com/tesseract-ocr/tessdata_best/raw/main/jpn_vert.traineddata && \
-    curl -fsSL -o "${TESSDATA_DIR}/eng.traineddata" \
-    https://github.com/tesseract-ocr/tessdata_best/raw/main/eng.traineddata
 ENV TESSDATA_PREFIX=/usr/share/tesseract/tessdata/
+RUN test -d "${TESSDATA_PREFIX%/}" && \
+    echo "tessdata dir: ${TESSDATA_PREFIX%/}" && \
+    curl -fsSL -o "${TESSDATA_PREFIX%/}/jpn.traineddata" \
+    https://github.com/tesseract-ocr/tessdata_best/raw/main/jpn.traineddata && \
+    curl -fsSL -o "${TESSDATA_PREFIX%/}/jpn_vert.traineddata" \
+    https://github.com/tesseract-ocr/tessdata_best/raw/main/jpn_vert.traineddata && \
+    curl -fsSL -o "${TESSDATA_PREFIX%/}/eng.traineddata" \
+    https://github.com/tesseract-ocr/tessdata_best/raw/main/eng.traineddata
 RUN tesseract --list-langs 2>&1 | grep -E "jpn|eng" || echo "WARNING: language check failed"
 
 # docling-serve が参照するモデル格納先を明示.
