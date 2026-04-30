@@ -24,12 +24,17 @@ RUN TESSDATA_DIR=$(find /usr /opt -name "tessdata" -type d 2>/dev/null | head -1
     https://github.com/tesseract-ocr/tessdata_best/raw/main/jpn_vert.traineddata && \
     curl -fsSL -o "${TESSDATA_DIR}/eng.traineddata" \
     https://github.com/tesseract-ocr/tessdata_best/raw/main/eng.traineddata
-
 ENV TESSDATA_PREFIX=/usr/share/tesseract/tessdata/
-
 RUN tesseract --list-langs 2>&1 | grep -E "jpn|eng" || echo "WARNING: language check failed"
 
+# RapidOCR の ONNX モデルをビルド時にダウンロード.
+RUN python3 -c "from rapidocr import RapidOCR; RapidOCR()"
+
+# HuggingFace Hub のオフラインモードを有効化.
 USER 1001
+ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
+
 # WORKDIR /opt/app-root/src
 # EXPOSE 5001
 # CMD ["docling-serve", "run"]
