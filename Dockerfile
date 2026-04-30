@@ -5,9 +5,6 @@ FROM quay.io/docling-project/docling-serve:${BASE_TAG}
 
 USER root
 
-# VLM; Vision Language Model をダウンロード.
-# RUN docling-tools models download smolvlm
-
 # 日本語 Tesseract 言語パックを追加.
 RUN dnf install -y --best --nodocs --setopt=install_weak_deps=False \
     tesseract-langpack-jpn google-noto-sans-cjk-jp-fonts google-noto-serif-cjk-ttc-fonts \
@@ -27,11 +24,25 @@ RUN TESSDATA_DIR=$(find /usr /opt -name "tessdata" -type d 2>/dev/null | head -1
 ENV TESSDATA_PREFIX=/usr/share/tesseract/tessdata/
 RUN tesseract --list-langs 2>&1 | grep -E "jpn|eng" || echo "WARNING: language check failed"
 
-# RapidOCR の ONNX モデルをビルド時にダウンロード.
-RUN python3 -c "from rapidocr import RapidOCR; RapidOCR()"
+# docling-serve が参照するモデル格納先を明示.
+ENV DOCLING_SERVE_ARTIFACTS_PATH=/opt/app-root/src/.cache/docling/models
+ENV HF_HOME=/opt/app-root/src/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/opt/app-root/src/.cache/huggingface
+RUN mkdir -p "${DOCLING_SERVE_ARTIFACTS_PATH}" "${HF_HOME}" && \
+    chown -R 1001:0 /opt/app-root/src/.cache && \
+    chmod -R g=u /opt/app-root/src/.cache
+
+# docling-serve が起動時に使う標準モデル・ツールをビルド時に取得.
+USER 1001
+RUN HF_HUB_DOWNLOAD_TIMEOUT=90 HF_HUB_ETAG_TIMEOUT=90 \
+    docling-tools models download -o "${DOCLING_SERVE_ARTIFACTS_PATH}" \
+    layout tableformer picture_classifier rapidocr easyocr && \
+    test -d "${DOCLING_SERVE_ARTIFACTS_PATH}/docling-project--docling-layout-heron"
+
+# OPTION: VLM (Vision Language Model) もビルド時に取得.
+# RUN docling-tools models download smolvlm
 
 # HuggingFace Hub のオフラインモードを有効化.
-USER 1001
 ENV HF_HUB_OFFLINE=1
 ENV TRANSFORMERS_OFFLINE=1
 
