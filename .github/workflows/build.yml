@@ -27,19 +27,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Determine base tag
         id: vars
         run: |
@@ -61,8 +48,71 @@ jobs:
           fi
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
+      - name: Check if image tag already exists
+        id: ghcr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          TAG="${{ steps.vars.outputs.base_tag }}"
+
+          if [ "${TAG}" = "latest" ]; then
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            echo "latest is mutable. Build will proceed."
+            exit 0
+          fi
+
+          BASE64_TOKEN=$(printf '%s:%s' "${{ github.actor }}" "${GH_TOKEN}" | base64 | tr -d '\n')
+          AUTH_TOKEN=$(curl -fsSL \
+            -H "Authorization: Basic ${BASE64_TOKEN}" \
+            "https://ghcr.io/token?scope=repository:${OWNER}/docling-serve-jp:pull&service=ghcr.io" \
+            | jq -r '.token')
+
+          HTTP_STATUS=$(curl -sS -o /tmp/ghcr-tags.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${AUTH_TOKEN}" \
+            "https://ghcr.io/v2/${OWNER}/docling-serve-jp/tags/list")
+
+          echo "GHCR tag list check for ${TAG}: HTTP ${HTTP_STATUS}"
+
+          if [ "${HTTP_STATUS}" = "404" ]; then
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            echo "Package does not exist yet. Build will proceed."
+            exit 0
+          fi
+
+          if [ "${HTTP_STATUS}" != "200" ]; then
+            echo "Failed to query GHCR tags: HTTP ${HTTP_STATUS}" >&2
+            cat /tmp/ghcr-tags.json >&2 || true
+            exit 1
+          fi
+
+          if jq -e --arg tag "${TAG}" '(.tags // []) | index($tag) != null' /tmp/ghcr-tags.json > /dev/null; then
+            echo "needs_build=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} is already published. Skipping build."
+          else
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} is not published yet. Build will proceed."
+          fi
+
+      - name: Checkout
+        if: steps.ghcr.outputs.needs_build == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        if: steps.ghcr.outputs.needs_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: steps.ghcr.outputs.needs_build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push
         id: build
+        if: steps.ghcr.outputs.needs_build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -74,7 +124,13 @@ jobs:
 
       - name: Summary
         run: |
-          echo "### Build complete" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **base_tag**: ${{ steps.vars.outputs.base_tag }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **tags**: ${{ steps.vars.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **digest**: ${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.ghcr.outputs.needs_build }}" = "true" ]; then
+            echo "### Build complete" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **base_tag**: ${{ steps.vars.outputs.base_tag }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **tags**: ${{ steps.vars.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **digest**: ${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Build skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **base_tag**: ${{ steps.vars.outputs.base_tag }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **reason**: tag already exists in GHCR" >> "$GITHUB_STEP_SUMMARY"
+          fi

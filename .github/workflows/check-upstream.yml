@@ -13,6 +13,9 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     outputs:
       latest_tag: ${{ steps.upstream.outputs.latest_tag }}
       needs_build: ${{ steps.ghcr.outputs.needs_build }}
@@ -41,12 +44,25 @@ jobs:
             "https://ghcr.io/token?scope=repository:${OWNER}/docling-serve-jp:pull&service=ghcr.io" \
             | jq -r '.token')
 
-          HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" \
+          HTTP_STATUS=$(curl -sS -o /tmp/ghcr-tags.json -w "%{http_code}" \
             -H "Authorization: Bearer ${AUTH_TOKEN}" \
-            "https://ghcr.io/v2/${OWNER}/docling-serve-jp/manifests/${TAG}")
+            "https://ghcr.io/v2/${OWNER}/docling-serve-jp/tags/list")
 
-          echo "GHCR manifest check for ${TAG}: HTTP ${HTTP_STATUS}"
-          if [ "${HTTP_STATUS}" = "200" ]; then
+          echo "GHCR tag list check for ${TAG}: HTTP ${HTTP_STATUS}"
+
+          if [ "${HTTP_STATUS}" = "404" ]; then
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            echo "Package does not exist yet. Build will be triggered."
+            exit 0
+          fi
+
+          if [ "${HTTP_STATUS}" != "200" ]; then
+            echo "Failed to query GHCR tags: HTTP ${HTTP_STATUS}" >&2
+            cat /tmp/ghcr-tags.json >&2 || true
+            exit 1
+          fi
+
+          if jq -e --arg tag "${TAG}" '(.tags // []) | index($tag) != null' /tmp/ghcr-tags.json > /dev/null; then
             echo "needs_build=false" >> "$GITHUB_OUTPUT"
             echo "Tag ${TAG} is already built. Skipping."
           else
