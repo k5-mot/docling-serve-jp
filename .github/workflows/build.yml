@@ -8,12 +8,21 @@ on:
         required: false
         default: 'latest'
         type: string
+      force_rebuild:
+        description: 'Rebuild and push even if the GHCR tag already exists'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       base_tag:
         required: false
         default: 'latest'
         type: string
+      force_rebuild:
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - 'v*'
@@ -59,6 +68,12 @@ jobs:
           if [ "${TAG}" = "latest" ]; then
             echo "needs_build=true" >> "$GITHUB_OUTPUT"
             echo "latest is mutable. Build will proceed."
+            exit 0
+          fi
+
+          if [ "${{ inputs.force_rebuild }}" = "true" ]; then
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            echo "Force rebuild requested. Build will proceed even if ${TAG} is already published."
             exit 0
           fi
 
@@ -127,6 +142,7 @@ jobs:
           if [ "${{ steps.ghcr.outputs.needs_build }}" = "true" ]; then
             echo "### Build complete" >> "$GITHUB_STEP_SUMMARY"
             echo "- **base_tag**: ${{ steps.vars.outputs.base_tag }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **force_rebuild**: ${{ inputs.force_rebuild }}" >> "$GITHUB_STEP_SUMMARY"
             echo "- **tags**: ${{ steps.vars.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
             echo "- **digest**: ${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
           else
