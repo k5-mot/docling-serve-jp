@@ -7,8 +7,6 @@ USER root
 
 # 日本語 Tesseract 言語パックを追加.
 # ※ tesseract-langpack-jpn に含まれるフォントで十分なはずなので、追加でフォントをインストールしない.
-#    google-noto-sans-cjk-jp-fonts
-#    google-noto-serif-cjk-ttc-fonts
 RUN dnf install -y --best --nodocs --setopt=install_weak_deps=False \
     tesseract-langpack-jpn \
     && dnf clean all \
@@ -40,9 +38,11 @@ RUN mkdir -p "${DOCLING_SERVE_ARTIFACTS_PATH}" "${HF_HOME}" && \
 # ※ rapidocr easyocrは使う予定がないので、ダウンロード対象から外す.
 USER 1001
 ENV DOCLING_SERVE_LOAD_MODELS_AT_BOOT=false
+# ARG MODELS_LIST="layout tableformer picture_classifier rapidocr easyocr smolvlm"
+ARG MODELS_LIST="layout tableformer picture_classifier smolvlm"
 RUN HF_HUB_DOWNLOAD_TIMEOUT=90 HF_HUB_ETAG_TIMEOUT=90 \
     docling-tools models download -o "${DOCLING_SERVE_ARTIFACTS_PATH}" \
-    layout tableformer picture_classifier && \
+    ${MODELS_LIST} && \
     test -d "${DOCLING_SERVE_ARTIFACTS_PATH}/docling-project--docling-layout-heron"
 
 # HuggingFace Hub のオフラインモードを有効化.
