@@ -1,6 +1,6 @@
 # docling-serve-jp
 
-[quay.io/docling-project/docling-serve](https://quay.io/repository/docling-project/docling-serve) の公式イメージをベースに、**Tesseract 日本語パック（tessdata_best）** を追加した派生 Docker イメージを自動ビルドし、GHCR へ公開するリポジトリです。
+[quay.io/docling-project/docling-serve](https://quay.io/repository/docling-project/docling-serve) の公式イメージをベースに、**Tesseract 日本語パック（tessdata_best）** と **AIモデルのプリダウンロード** を追加した派生 Docker イメージを自動ビルドし、GHCR へ公開するリポジトリです。
 
 ---
 
@@ -15,35 +15,89 @@
 
 ---
 
+## イメージの特徴
+
+- Tesseract 日本語パック（tessdata_best: `jpn` / `jpn_vert` / `eng`）を追加
+- AIモデルをビルド時にプリダウンロード済み（起動時のダウンロード不要・高速起動）
+- HuggingFace オフラインモード（コンテナが外部に接続しない）
+
+---
+
+## モデルプロファイル
+
+ビルド時に `MODEL_PROFILE` ビルド引数で取り込むモデルセットを選択できます（デフォルト: `high`）。
+
+| プロファイル | 取り込まれるモデル |
+| ------------ | ----------------- |
+| `high` | layout, code_formula, tableformer, picture_classifier, granite_vision, granitedocling, granite_chart_extraction |
+| `light` | layout, code_formula, tableformer, picture_classifier, smolvlm, smoldocling |
+| `base` | layout, code_formula, tableformer, picture_classifier |
+
+---
+
 ## docker-compose.yml での使い方
+
+### GHCR の公開イメージを使う場合
 
 ```yaml
 services:
   docling:
     image: ghcr.io/<owner>/docling-serve-jp:v1.17.0
-    container_name: inferlab-docling
+    container_name: docling-jp
     restart: unless-stopped
     environment:
       DOCLING_SERVE_HOST: 0.0.0.0
       DOCLING_SERVE_PORT: 5001
       DOCLING_SERVE_ENABLE_UI: "true"
       DOCLING_SERVE_API_KEY: "sk-docling-serve-api-key"
-      DOCLING_SERVE_ENABLE_REMOTE_SERVICES: "true"
-      DOCLING_SERVE_MAX_SYNC_WAIT: 20000
-      TESSDATA_PREFIX: /usr/share/tesseract/tessdata/
+      DOCLING_SERVE_ARTIFACTS_PATH: /opt/app-root/src/.cache/docling/models
+      DOCLING_SERVE_LOAD_MODELS_AT_BOOT: "false"
+      DOCLING_SERVE_MAX_SYNC_WAIT: 36000
     ports:
       - 50001:5001
     volumes:
       - docling-data:/data
-    networks:
-      - llm-internal
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
 
 volumes:
   docling-data:
+```
 
-networks:
-  llm-internal:
-    external: true
+### ローカルでビルドして使う場合
+
+```yaml
+services:
+  docling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_TAG: v1.17.0
+        MODEL_PROFILE: high
+    container_name: docling-jp
+    restart: unless-stopped
+    environment:
+      DOCLING_SERVE_HOST: 0.0.0.0
+      DOCLING_SERVE_PORT: 5001
+      DOCLING_SERVE_ENABLE_UI: "true"
+      DOCLING_SERVE_API_KEY: "sk-docling-serve-api-key"
+      DOCLING_SERVE_ARTIFACTS_PATH: /opt/app-root/src/.cache/docling/models
+      DOCLING_SERVE_LOAD_MODELS_AT_BOOT: "false"
+      DOCLING_SERVE_MAX_SYNC_WAIT: 36000
+    ports:
+      - 50001:5001
+    volumes:
+      - docling-data:/data
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+
+volumes:
+  docling-data:
 ```
 
 Open WebUI 側の `DOCLING_PARAMS`:
@@ -65,6 +119,15 @@ DOCLING_PARAMS: >-
 2. **Build and Push Image** ワークフローを選択
 3. **Run workflow** をクリック
 4. `base_tag` に上流タグ（例: `v1.17.0`）または `latest` を入力して実行
+
+Docker CLI で直接ビルドする場合:
+
+```bash
+docker build \
+  --build-arg BASE_TAG=v1.17.0 \
+  --build-arg MODEL_PROFILE=high \
+  -t docling-serve-jp .
+```
 
 ---
 
