@@ -128,6 +128,42 @@ DOCLING_PARAMS: >-
 | `do_picture_description`, `picture_description_preset` | granite_vision |
 | `do_chart_extraction` | granite_chart_extraction_v4 |
 
+Open WebUI 側の `DOCLING_PARAMS`（外部 OpenAI 互換 API / LiteLLM・vLLM 経由で VLM を使う場合）:
+
+VLM を外部にオフロードするため、`MODEL_PROFILE=base` の軽量イメージでも利用できます。
+
+```yaml
+DOCLING_PARAMS: >-
+  {
+    "do_ocr": true,
+    "ocr_engine": "tesseract",
+    "ocr_lang": ["jpn", "jpn_vert", "eng"],
+    "do_table_structure": true,
+    "table_mode": "accurate",
+    "do_code_enrichment": true,
+    "do_formula_enrichment": true,
+    "do_picture_classification": true,
+    "do_picture_description": true,
+    "picture_description_api": {
+      "url": "http://litellm:4000/v1/chat/completions",
+      "headers": {"Authorization": "Bearer YOUR_API_KEY"},
+      "params": {
+        "model": "gpt-4o",
+        "max_completion_tokens": 200
+      }
+    }
+  }
+```
+
+`picture_description_api` の各フィールド:
+
+| フィールド | 説明 |
+| --------- | ---- |
+| `url` | `/v1/chat/completions` エンドポイント（vLLM は `:8000`、LM Studio は `:1234`、Ollama は `:11434`） |
+| `headers` | 認証ヘッダー（LiteLLM の API キーなど） |
+| `params.model` | API 側のモデル名（例: `gpt-4o`、`ibm-granite/granite-vision-3.3-2b`） |
+| `params.max_completion_tokens` | 最大生成トークン数 |
+
 ---
 
 ## ビルド手動実行
