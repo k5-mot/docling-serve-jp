@@ -100,16 +100,33 @@ volumes:
   docling-data:
 ```
 
-Open WebUI 側の `DOCLING_PARAMS`:
+Open WebUI 側の `DOCLING_PARAMS`（`MODEL_PROFILE=high` 向け全機能有効例）:
 
 ```yaml
 DOCLING_PARAMS: >-
   {
     "do_ocr": true,
     "ocr_engine": "tesseract",
-    "ocr_lang": ["jpn", "eng"]
+    "ocr_lang": ["jpn", "jpn_vert", "eng"],
+    "do_table_structure": true,
+    "table_mode": "accurate",
+    "do_code_enrichment": true,
+    "do_formula_enrichment": true,
+    "do_picture_classification": true,
+    "do_picture_description": true,
+    "picture_description_preset": "granite_vision",
+    "do_chart_extraction": true
   }
 ```
+
+| パラメータ | 対応モデル |
+| --------- | --------- |
+| `ocr_engine`, `ocr_lang` | tesseract (`jpn` / `jpn_vert` / `eng`) |
+| `do_table_structure`, `table_mode` | tableformer / tableformerv2 |
+| `do_code_enrichment`, `do_formula_enrichment` | code_formula |
+| `do_picture_classification` | picture_classifier |
+| `do_picture_description`, `picture_description_preset` | granite_vision |
+| `do_chart_extraction` | granite_chart_extraction_v4 |
 
 ---
 
