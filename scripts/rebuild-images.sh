@@ -5,7 +5,6 @@ IMAGE="${IMAGE:-ghcr.io/k5-mot/docling-serve-jp}"
 BUILDER="${BUILDER:-docling-multi}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 INSTALL_BINFMT="${INSTALL_BINFMT:-1}"
-MODELS_LIST="${MODELS_LIST:-}"
 
 TAGS=(
 #   v1.10.0
@@ -45,9 +44,6 @@ docker buildx inspect --bootstrap "${BUILDER}" >/dev/null
 
 for tag in "${TAGS[@]}"; do
   build_args=(--build-arg "BASE_TAG=${tag}")
-  if [[ -n "${MODELS_LIST}" ]]; then
-    build_args+=(--build-arg "MODELS_LIST=${MODELS_LIST}")
-  fi
 
   echo "==> Building and pushing ${IMAGE}:${tag}"
   docker buildx build \

@@ -4,7 +4,6 @@ ARG BASE_TAG=latest
 FROM quay.io/docling-project/docling-serve:${BASE_TAG}
 
 ARG BASE_TAG=latest
-ARG MODEL_PROFILE=high
 
 ENV DOCLING_SERVE_LOAD_MODELS_AT_BOOT=false
 
@@ -46,16 +45,12 @@ ENV DOCLING_ARTIFACTS_PATH=/opt/app-root/src/.cache/docling/models
 ENV HF_HOME=/opt/app-root/src/.cache/huggingface
 ENV TRANSFORMERS_CACHE=/opt/app-root/src/.cache/huggingface
 RUN mkdir -p "${DOCLING_SERVE_ARTIFACTS_PATH}" "${HF_HOME}" && \
+    rm -rf "${DOCLING_SERVE_ARTIFACTS_PATH:?}"/* && \
     chown -R 1001:0 /opt/app-root/src/.cache && \
     chmod -R g=u /opt/app-root/src/.cache
 
 #
-# 対応モデルを判定し、MODEL_PROFILE に応じたモデルリストを作成.
-#
-# MODEL_PROFILE:
-#   high  : Granite系VLM + chart対応
-#   medium: Smol系VLM
-#   low   : VLMなしの基本構成
+# 対応する tableformer モデルを判定し、基本モデルリストを作成.
 #
 # 処理の流れ
 #   0. DOCX/PPTX/PDF
@@ -65,11 +60,11 @@ RUN mkdir -p "${DOCLING_SERVE_ARTIFACTS_PATH}" "${HF_HOME}" && \
 #   4. tableformer                : 表解析モデル
 #        - tableformerv2               : v1.20.0
 #   5. picture_classifier         : 図・画像分類モデル
-#   6. granite_vision             : 画像理解VLM
-#   7. granite_chart_extraction_v4: グラフ数値抽出VLM
+#   6. granite_vision             : 画像理解VLM (サイズが大きいため、同梱無し)
+#   7. granite_chart_extraction_v4: グラフ数値抽出VLM (サイズが大きいため、同梱無し)
 #        - granite_chart_extraction    : v1.13.0-
 #        - granite_chart_extraction_v4 : v1.22.0-
-#   8. granitedocling             : 文書解析VLM
+#   8. granitedocling             : 文書解析VLM (サイズが大きいため、同梱無し)
 #   X. Markdown/DocTags
 #
 USER 1001
@@ -82,36 +77,10 @@ RUN set -eu; \
     TABLE_MODEL="tableformer"; \
     fi; \
     \
-    if echo "$HELP" | grep -q "granite_chart_extraction_v4"; then \
-    CHART_MODEL="granite_chart_extraction_v4"; \
-    elif echo "$HELP" | grep -q "granite_chart_extraction"; then \
-    CHART_MODEL="granite_chart_extraction"; \
-    else \
-    CHART_MODEL=""; \
-    fi; \
-    \
-    case "$MODEL_PROFILE" in \
-    high) \
-    MODELS="layout code_formula ${TABLE_MODEL} picture_classifier granite_vision granitedocling"; \
-    if [ -n "$CHART_MODEL" ]; then MODELS="$MODELS $CHART_MODEL"; fi; \
-    ;; \
-    medium) \
-    MODELS="layout code_formula ${TABLE_MODEL} picture_classifier smolvlm smoldocling"; \
-    ;; \
-    low) \
     MODELS="layout code_formula ${TABLE_MODEL} picture_classifier"; \
-    ;; \
-    *) \
-    echo "Unknown MODEL_PROFILE=$MODEL_PROFILE"; \
-    exit 1; \
-    ;; \
-    esac; \
-    \
     echo "$MODELS" > /tmp/docling-models-list && \
     echo "BASE_TAG=${BASE_TAG}" && \
-    echo "MODEL_PROFILE=${MODEL_PROFILE}" && \
     echo "TABLE_MODEL=${TABLE_MODEL}" && \
-    echo "CHART_MODEL=${CHART_MODEL:-none}" && \
     echo "MODELS=${MODELS}"
 
 #
