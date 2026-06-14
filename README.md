@@ -1,6 +1,6 @@
 # docling-serve-jp
 
-[quay.io/docling-project/docling-serve](https://quay.io/repository/docling-project/docling-serve) の公式イメージをベースに、**Tesseract 日本語パック（tessdata_best）** と **AIモデルのプリダウンロード** を追加した派生 Docker イメージを自動ビルドし、GHCR へ公開するリポジトリです。
+[quay.io/docling-project/docling-serve](https://quay.io/repository/docling-project/docling-serve) の公式イメージをベースに、**Tesseract 日本語パック（tessdata_best）** と **軽量な基本AIモデルのプリダウンロード** を追加した派生 Docker イメージを自動ビルドし、GHCR へ公開するリポジトリです。
 
 ---
 
@@ -18,20 +18,30 @@
 ## イメージの特徴
 
 - Tesseract 日本語パック（tessdata_best: `jpn` / `jpn_vert` / `eng`）を追加
-- AIモデルをビルド時にプリダウンロード済み（起動時のダウンロード不要・高速起動）
+- 軽量な基本AIモデルをビルド時にプリダウンロード済み（起動時のダウンロード不要・高速起動）
+- Granite / Smol 系の重いVLMはイメージに含めず、必要時に外部ボリュームでマウント
 - HuggingFace オフラインモード（コンテナが外部に接続しない）
 
 ---
 
-## モデルプロファイル
+## プリダウンロードモデル
 
-ビルド時に `MODEL_PROFILE` ビルド引数で取り込むモデルセットを選択できます（デフォルト: `high`）。
+BuildKit / containerd の容量不足を避けるため、イメージには重いVLMを同梱せず、基本モデルだけを取り込みます。
 
-| プロファイル | 取り込まれるモデル |
-| ------------ | ----------------- |
-| `high` | layout, code_formula, tableformer, picture_classifier, granite_vision, granitedocling, granite_chart_extraction |
-| `light` | layout, code_formula, tableformer, picture_classifier, smolvlm, smoldocling |
-| `base` | layout, code_formula, tableformer, picture_classifier |
+| 取り込まれるモデル |
+| ----------------- |
+| layout |
+| code_formula |
+| tableformer/tableformerv2 |
+| picture_classifier |
+
+以下のモデルを使う場合は、[MANUAL.md](./MANUAL.md) の手順で外部ディレクトリへダウンロードしてマウントしてください。
+
+- granite_vision
+- granitedocling
+- granite_chart_extraction_v4 または granite_chart_extraction
+- smolvlm
+- smoldocling
 
 ---
 
@@ -76,7 +86,6 @@ services:
       dockerfile: Dockerfile
       args:
         BASE_TAG: v1.17.0
-        MODEL_PROFILE: high
     container_name: docling-jp
     restart: unless-stopped
     environment:
@@ -100,7 +109,7 @@ volumes:
   docling-data:
 ```
 
-Open WebUI 側の `DOCLING_PARAMS`（`MODEL_PROFILE=high` 向け全機能有効例）:
+Open WebUI 側の `DOCLING_PARAMS`（Granite 系VLMを外部マウントした場合の全機能有効例）:
 
 ```yaml
 DOCLING_PARAMS: >-
@@ -130,7 +139,7 @@ DOCLING_PARAMS: >-
 
 Open WebUI 側の `DOCLING_PARAMS`（外部 OpenAI 互換 API / LiteLLM・vLLM 経由で VLM を使う場合）:
 
-VLM を外部にオフロードするため、`MODEL_PROFILE=base` の軽量イメージでも利用できます。
+VLM を外部にオフロードするため、基本モデルのみを含む軽量イメージで利用できます。
 
 ```yaml
 DOCLING_PARAMS: >-
@@ -178,7 +187,6 @@ Docker CLI で直接ビルドする場合:
 ```bash
 docker build \
   --build-arg BASE_TAG=v1.17.0 \
-  --build-arg MODEL_PROFILE=high \
   -t docling-serve-jp .
 ```
 
