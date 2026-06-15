@@ -190,6 +190,15 @@ docker build \
   -t docling-serve-jp .
 ```
 
+ローカルから GHCR へ push する `scripts/rebuild-images.sh` を使う場合は、事前に `write:packages` 権限を持つ personal access token でログインしてください。
+
+```bash
+echo "$GHCR_PAT" | docker login ghcr.io -u <github-user> --password-stdin
+IMAGE=ghcr.io/<owner>/docling-serve-jp bash ./scripts/rebuild-images.sh
+```
+
+`GITHUB_TOKEN` は GitHub Actions の workflow 内で `packages: write` が付与されている場合に使うトークンです。ローカル実行では GHCR への push scope が不足することがあります。
+
 ---
 
 ## タグ命名規則

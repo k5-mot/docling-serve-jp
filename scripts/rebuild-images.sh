@@ -6,10 +6,12 @@ BUILDER="${BUILDER:-docling-multi}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 INSTALL_BINFMT="${INSTALL_BINFMT:-1}"
 
+REGISTRY="${IMAGE%%/*}"
+if [[ "${REGISTRY}" != *.* && "${REGISTRY}" != *:* && "${REGISTRY}" != "localhost" ]]; then
+  REGISTRY="docker.io"
+fi
+
 TAGS=(
-#   v1.10.0
-#   v1.11.0
-#   v1.12.0
   v1.13.0
   v1.13.1
   v1.14.0
@@ -29,6 +31,22 @@ TAGS=(
 )
 
 command -v docker >/dev/null
+
+if [[ "${REGISTRY}" == "ghcr.io" ]]; then
+  docker_config="${DOCKER_CONFIG:-${HOME}/.docker}/config.json"
+  if [[ ! -f "${docker_config}" ]] || ! grep -q '"ghcr.io"' "${docker_config}"; then
+    cat >&2 <<'EOF'
+ERROR: ghcr.io is not configured in Docker credentials.
+
+Run:
+  echo "$GHCR_PAT" | docker login ghcr.io -u <github-user> --password-stdin
+
+Use a personal access token with write:packages permission.
+The GitHub Actions GITHUB_TOKEN is only suitable inside the workflow that grants packages: write.
+EOF
+    exit 1
+  fi
+fi
 
 if [[ "${INSTALL_BINFMT}" == "1" && "${PLATFORMS}" == *"linux/arm64"* ]]; then
   docker run --privileged --rm tonistiigi/binfmt --install arm64
@@ -55,6 +73,7 @@ for tag in "${TAGS[@]}"; do
     -t "${IMAGE}:latest" \
     .
   echo "==> Pushed ${IMAGE}:${tag}"
+#   docker image rm "docling-serve-jp:${tag}"
 done
 
 echo "Done. ${IMAGE}:latest was updated by the final build: ${TAGS[-1]}"
