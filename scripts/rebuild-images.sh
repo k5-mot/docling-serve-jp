@@ -28,6 +28,7 @@ TAGS=(
   v1.22.0
   v1.22.1
   v1.23.0
+  v1.24.0
 )
 
 command -v docker >/dev/null
