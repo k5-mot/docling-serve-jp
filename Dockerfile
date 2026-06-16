@@ -51,21 +51,62 @@ RUN mkdir -p "${DOCLING_SERVE_ARTIFACTS_PATH}" "${HF_HOME}" && \
 
 #
 # 対応する tableformer モデルを判定し、基本モデルリストを作成.
+#   URL: https://docling-project.github.io/docling/usage/model_catalog/
 #
-# 処理の流れ
+# 処理の流れ; Standard Pipeline
 #   0. DOCX/PPTX/PDF
-#   1. layout                     : 文書構造解析モデル
-#   2. tesseract/rapidocr/easyocr : OCRエンジン (aptでインストール済)
-#   3. code_formula               : 数式・コード抽出モデル
-#   4. tableformer                : 表解析モデル
-#        - tableformerv2               : v1.20.0
-#   5. picture_classifier         : 図・画像分類モデル
-#   6. granite_vision             : 画像理解VLM (サイズが大きいため、同梱無し)
-#   7. granite_chart_extraction_v4: グラフ数値抽出VLM (サイズが大きいため、同梱無し)
-#        - granite_chart_extraction    : v1.13.0-
-#        - granite_chart_extraction_v4 : v1.22.0-
-#   8. granitedocling             : 文書解析VLM (サイズが大きいため、同梱無し)
+#   1. 文書構造解析モデル / Object Detection Models (Layout)
+#     - layout
+#   2. 表構造解析モデル / TableFormer Models
+#     - tableformer
+#     - tableformerv2              : v1.20.0-
+#   3. 画像・図分類モデル / Image & Picture Classifier
+#     - picture_classifier
+#   4. OCRエンジン / OCR Engines
+#     - tesseract (aptでインストール済)
+#     - rapidocr
+#     - easyocr
+#   5. 読上順序決定アルゴリズム / Reading Order
+#     - docling内部ロジック
+#   6. 視覚言語モデル / Vision-Language Model
+#     6.1. [OPTIONAL] 画像説明VLM / Picture Description (サイズが大きいため、同梱無し)
+#       - smolvlm
+#       - granite_vision
+#     6.2. [OPTIONAL] コード・数式VLM / Code & Formula (サイズが大きいため、同梱無し)
+#       - code_formula
+#     6.3. [OPTIONAL] グラフ数値抽出VLM / Chart Extraction (サイズが大きいため、同梱無し)
+#       - granite_chart_extraction    : v1.13.0-
+#       - granite_chart_extraction_v4 : v1.22.0-
 #   X. Markdown/DocTags
+#
+# 処理の流れ; VLM Pipeline
+#   0. DOCX/PPTX/PDF
+#   1. フルページ変換VLM / Full-Page Convert VLM (サイズが大きいため、同梱無し)
+#      - VLMが以下を統合的に推定する:
+#        - 文書構造
+#        - 表構造
+#        - 画像・図領域の認識
+#        - 読上順序
+#        - テキスト認識 (OCR相当)
+#     - smoldocling
+#     - granitedocling
+#   X. Markdown/DocTags
+#
+# 処理の流れ; Hybrid Pipeline
+#   0. DOCX/PPTX/PDF
+#   1. フルページ変換VLM / Full-Page Convert VLM
+#      - VLMが以下を推定する:
+#        - 文書構造
+#        - 表構造
+#        - 画像・図領域の認識
+#        - 読上順序
+#        - テキスト領域 (bbox)
+#   2. OCRエンジン / OCR Engines
+#      - OCR/PDF backend が、VLMが推定した領域内の文字列を取得し、VLM生成テキストを置換する.
+#   X. Markdown/DocTags
+#
+# Commands:
+#   docling-tools models download -o ./docling-models granite_vision code_formula granite_chart_extraction_v4
 #
 USER 1001
 RUN set -eu; \
@@ -77,7 +118,7 @@ RUN set -eu; \
     TABLE_MODEL="tableformer"; \
     fi; \
     \
-    MODELS="layout code_formula ${TABLE_MODEL} picture_classifier"; \
+    MODELS="layout ${TABLE_MODEL} picture_classifier code_formula"; \
     echo "$MODELS" > /tmp/docling-models-list && \
     echo "BASE_TAG=${BASE_TAG}" && \
     echo "TABLE_MODEL=${TABLE_MODEL}" && \
