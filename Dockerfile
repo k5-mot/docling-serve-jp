@@ -118,7 +118,7 @@ RUN set -eu; \
     TABLE_MODEL="tableformer"; \
     fi; \
     \
-    MODELS="layout ${TABLE_MODEL} picture_classifier code_formula"; \
+    MODELS="layout ${TABLE_MODEL} picture_classifier"; \
     echo "$MODELS" > /tmp/docling-models-list && \
     echo "BASE_TAG=${BASE_TAG}" && \
     echo "TABLE_MODEL=${TABLE_MODEL}" && \
