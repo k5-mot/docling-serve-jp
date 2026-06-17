@@ -106,35 +106,19 @@ RUN mkdir -p "${DOCLING_SERVE_ARTIFACTS_PATH}" "${HF_HOME}" && \
 #   X. Markdown/DocTags
 #
 # Commands:
-#   docling-tools models download -o ./docling-models granite_vision code_formula granite_chart_extraction_v4
+#   docling-tools models download -o ./docling-models tableformerv2 granite_vision code_formula granite_chart_extraction_v4
+#   docling-tools models download -o ./docling-models granitedocling
 #
 USER 1001
-RUN set -eu; \
-    HELP="$(docling-tools models download --help 2>&1)"; \
-    \
-    if echo "$HELP" | grep -q "tableformerv2"; then \
-    TABLE_MODEL="tableformerv2"; \
-    else \
-    TABLE_MODEL="tableformer"; \
-    fi; \
-    \
-    MODELS="layout ${TABLE_MODEL} picture_classifier"; \
-    echo "$MODELS" > /tmp/docling-models-list && \
-    echo "BASE_TAG=${BASE_TAG}" && \
-    echo "TABLE_MODEL=${TABLE_MODEL}" && \
-    echo "MODELS=${MODELS}"
+ENV HF_HUB_DOWNLOAD_TIMEOUT=90
+ENV HF_HUB_ETAG_TIMEOUT=90
 
 #
 # モデルを事前ダウンロード.
 #
-RUN set -eu; \
-    MODELS="$(cat /tmp/docling-models-list)"; \
-    echo "Downloading models: ${MODELS}"; \
-    HF_HUB_DOWNLOAD_TIMEOUT=90 \
-    HF_HUB_ETAG_TIMEOUT=90 \
-    docling-tools models download \
-    -o "${DOCLING_SERVE_ARTIFACTS_PATH}" \
-    ${MODELS}
+RUN docling-tools models download -o "${DOCLING_SERVE_ARTIFACTS_PATH}" layout
+RUN docling-tools models download -o "${DOCLING_SERVE_ARTIFACTS_PATH}" tableformer
+RUN docling-tools models download -o "${DOCLING_SERVE_ARTIFACTS_PATH}" picture_classifier
 
 #
 # モデルキャッシュの権限調整.
