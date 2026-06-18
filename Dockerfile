@@ -5,6 +5,8 @@ FROM quay.io/docling-project/docling-serve:${BASE_TAG}
 
 ARG BASE_TAG=latest
 
+LABEL org.opencontainers.image.source="https://github.com/k5-mot/docling-serve-jp"
+
 ENV DOCLING_SERVE_LOAD_MODELS_AT_BOOT=false
 
 USER root
